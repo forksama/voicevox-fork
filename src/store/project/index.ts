@@ -48,12 +48,18 @@ const applyTalkProjectToStore = async (
   const { audioItems, audioKeys } = talkProject;
 
   let prevAudioKey = undefined;
-  for (const audioKey of audioKeys) {
-    const audioItem = audioItems[audioKey];
+  for (const [audioKeyIndex, audioKey] of audioKeys.entries()) {
+    const projectAudioItem = audioItems[audioKey];
     // z.recordではvalueの型がundefinedになるが、
     // valueがundefinedにならないことを検証したあとであれば、
     // このif文に引っかかることはないはずである
-    if (audioItem == undefined) throw new Error("audioItem == undefined");
+    if (projectAudioItem == undefined)
+      throw new Error("projectAudioItem == undefined");
+    const audioItem: AudioItem = {
+      ...projectAudioItem,
+      exportFileNameIndex:
+        projectAudioItem.exportFileNameIndex ?? audioKeyIndex + 1,
+    };
     prevAudioKey = await actions.REGISTER_AUDIO_ITEM({
       prevAudioKey,
       audioItem,

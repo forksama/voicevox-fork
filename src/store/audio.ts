@@ -70,6 +70,60 @@ function generateAudioKey() {
   return AudioKey(uuid4());
 }
 
+function normalizeExportFileNameIndex(
+  exportFileNameIndex: number | undefined,
+  fallback: number,
+) {
+  const value = exportFileNameIndex ?? fallback;
+  if (!Number.isFinite(value)) return Math.max(1, Math.trunc(fallback));
+  return Math.max(1, Math.trunc(value));
+}
+
+function getNextExportFileNameIndexForInsert(
+  state: Pick<State, "audioItems" | "audioKeys">,
+  prevAudioKey: AudioKey | undefined,
+) {
+  const previousAudioKey =
+    prevAudioKey ?? state.audioKeys[state.audioKeys.length - 1];
+  if (previousAudioKey == undefined) return 1;
+
+  const previousAudioKeyIndex = state.audioKeys.indexOf(previousAudioKey);
+  const previousAudioItem = state.audioItems[previousAudioKey];
+  if (previousAudioKeyIndex === -1 || previousAudioItem == undefined) {
+    return state.audioKeys.length + 1;
+  }
+
+  return (
+    normalizeExportFileNameIndex(
+      previousAudioItem.exportFileNameIndex,
+      previousAudioKeyIndex + 1,
+    ) + 1
+  );
+}
+
+function setExportFileNameIndexesFromIndex(
+  state: Pick<State, "audioItems" | "audioKeys">,
+  startAudioKeyIndex: number,
+  startExportFileNameIndex: number,
+) {
+  if (startAudioKeyIndex < 0) return;
+
+  const normalizedStartExportFileNameIndex = normalizeExportFileNameIndex(
+    startExportFileNameIndex,
+    startAudioKeyIndex + 1,
+  );
+  for (
+    let index = startAudioKeyIndex;
+    index < state.audioKeys.length;
+    index++
+  ) {
+    const audioItem = state.audioItems[state.audioKeys[index]];
+    if (audioItem == undefined) continue;
+    audioItem.exportFileNameIndex =
+      normalizedStartExportFileNameIndex + index - startAudioKeyIndex;
+  }
+}
+
 function parseTextFile(
   body: string,
   defaultStyleIds: DefaultStyleId[],
@@ -125,7 +179,11 @@ function parseTextFile(
       continue;
     }
 
-    audioItems.push({ text: splitText, voice: lastVoice });
+    audioItems.push({
+      text: splitText,
+      voice: lastVoice,
+      exportFileNameIndex: audioItems.length + 1,
+    });
   }
   return audioItems;
 }
@@ -641,6 +699,7 @@ export const audioStore = createPartialStore<AudioStoreTypes>({
       payload: {
         text?: string;
         voice?: Voice;
+        exportFileNameIndex?: number;
         baseAudioItem?: AudioItem;
       },
     ) {
@@ -689,7 +748,14 @@ export const audioStore = createPartialStore<AudioStoreTypes>({
             .catch(() => undefined)
         : undefined;
 
-      const newAudioItem: AudioItem = { text, voice };
+      const newAudioItem: AudioItem = {
+        text,
+        voice,
+        exportFileNameIndex: normalizeExportFileNameIndex(
+          payload.exportFileNameIndex,
+          1,
+        ),
+      };
       if (query != undefined) {
         newAudioItem.query = query;
       }
@@ -773,6 +839,10 @@ export const audioStore = createPartialStore<AudioStoreTypes>({
         prevAudioKey != undefined
           ? state.audioKeys.indexOf(prevAudioKey) + 1
           : state.audioKeys.length;
+      audioItem.exportFileNameIndex = normalizeExportFileNameIndex(
+        audioItem.exportFileNameIndex,
+        index + 1,
+      );
       state.audioKeys.splice(index, 0, audioKey);
       state.audioItems[audioKey] = audioItem;
       state.audioStates[audioKey] = {
@@ -798,7 +868,14 @@ export const audioStore = createPartialStore<AudioStoreTypes>({
           : state.audioKeys.length;
       const audioKeys = audioKeyItemPairs.map((pair) => pair.audioKey);
       state.audioKeys.splice(index, 0, ...audioKeys);
-      for (const { audioKey, audioItem } of audioKeyItemPairs) {
+      for (const [
+        audioItemIndex,
+        { audioKey, audioItem },
+      ] of audioKeyItemPairs.entries()) {
+        audioItem.exportFileNameIndex = normalizeExportFileNameIndex(
+          audioItem.exportFileNameIndex,
+          index + audioItemIndex + 1,
+        );
         state.audioItems[audioKey] = audioItem;
         state.audioStates[audioKey] = {
           nowGenerating: false,
@@ -1247,7 +1324,6 @@ export const audioStore = createPartialStore<AudioStoreTypes>({
     getter: (state, getters) => (audioKey) => {
       const fileNamePattern = state.savingSetting.fileNamePattern;
 
-      const index = state.audioKeys.indexOf(audioKey);
       const audioItem = state.audioItems[audioKey];
 
       const character = getCharacterInfo(
@@ -1268,7 +1344,7 @@ export const audioStore = createPartialStore<AudioStoreTypes>({
       return (
         buildAudioFileNameFromRawData(fileNamePattern, {
           characterName: character.metas.speakerName,
-          index,
+          index: audioItem.exportFileNameIndex,
           styleName,
           text: audioItem.text,
           date: currentDateString(),
@@ -1881,9 +1957,15 @@ export const audioCommandStore = transformCommandStore(
         },
       ) {
         audioStore.mutations.INSERT_AUDIO_ITEM(draft, payload);
+        const audioKeyIndex = draft.audioKeys.indexOf(payload.audioKey);
+        setExportFileNameIndexesFromIndex(
+          draft,
+          audioKeyIndex,
+          payload.audioItem.exportFileNameIndex,
+        );
       },
       async action(
-        { mutations },
+        { state, mutations },
         {
           audioItem,
           prevAudioKey,
@@ -1893,8 +1975,15 @@ export const audioCommandStore = transformCommandStore(
         },
       ) {
         const audioKey = generateAudioKey();
+        const exportFileNameIndex = getNextExportFileNameIndexForInsert(
+          state,
+          prevAudioKey,
+        );
         mutations.COMMAND_REGISTER_AUDIO_ITEM({
-          audioItem,
+          audioItem: {
+            ...audioItem,
+            exportFileNameIndex,
+          },
           audioKey,
           prevAudioKey,
         });
@@ -1919,6 +2008,21 @@ export const audioCommandStore = transformCommandStore(
       },
       action({ mutations }, payload: { audioKeys: AudioKey[] }) {
         mutations.COMMAND_SET_AUDIO_KEYS(payload);
+      },
+    },
+
+    COMMAND_SET_AUDIO_EXPORT_FILE_NAME_INDEX: {
+      mutation(draft, { audioKey, exportFileNameIndex }) {
+        const audioKeyIndex = draft.audioKeys.indexOf(audioKey);
+        if (audioKeyIndex === -1) return;
+        setExportFileNameIndexesFromIndex(
+          draft,
+          audioKeyIndex,
+          exportFileNameIndex,
+        );
+      },
+      action({ mutations }, payload) {
+        mutations.COMMAND_SET_AUDIO_EXPORT_FILE_NAME_INDEX(payload);
       },
     },
 
@@ -2932,16 +3036,24 @@ export const audioCommandStore = transformCommandStore(
             getters.USER_ORDERED_CHARACTER_INFOS("talk");
           if (!userOrderedCharacterInfos)
             throw new Error("USER_ORDERED_CHARACTER_INFOS == undefined");
-          for (const { text, voice } of parseTextFile(
+          const startExportFileNameIndex = getNextExportFileNameIndexForInsert(
+            state,
+            undefined,
+          );
+          for (const { text, voice, exportFileNameIndex } of parseTextFile(
             body,
             state.defaultStyleIds,
             userOrderedCharacterInfos,
             baseAudioItem?.voice,
-          )) {
+          ).map((audioItem, index) => ({
+            ...audioItem,
+            exportFileNameIndex: startExportFileNameIndex + index,
+          }))) {
             audioItems.push(
               await actions.GENERATE_AUDIO_ITEM({
                 text,
                 voice,
+                exportFileNameIndex,
                 baseAudioItem,
               }),
             );
@@ -2972,6 +3084,16 @@ export const audioCommandStore = transformCommandStore(
           audioKeyItemPairs,
           prevAudioKey,
         });
+        const firstInsertedAudioKey = audioKeyItemPairs[0]?.audioKey;
+        if (firstInsertedAudioKey == undefined) return;
+        const firstInsertedAudioKeyIndex = draft.audioKeys.indexOf(
+          firstInsertedAudioKey,
+        );
+        setExportFileNameIndexesFromIndex(
+          draft,
+          firstInsertedAudioKeyIndex,
+          audioKeyItemPairs[0].audioItem.exportFileNameIndex,
+        );
       },
       action: createUILockAction(
         async (
@@ -2995,13 +3117,21 @@ export const audioCommandStore = transformCommandStore(
             baseAudioItem = state.audioItems[state._activeAudioKey];
           }
 
+          const startExportFileNameIndex = getNextExportFileNameIndexForInsert(
+            state,
+            prevAudioKey,
+          );
+          let exportFileNameIndexOffset = 0;
           for (const text of texts.filter((value) => value != "")) {
             const audioKey = generateAudioKey();
             const audioItem = await actions.GENERATE_AUDIO_ITEM({
               text,
               voice,
+              exportFileNameIndex:
+                startExportFileNameIndex + exportFileNameIndexOffset,
               baseAudioItem,
             });
+            exportFileNameIndexOffset++;
 
             audioKeyItemPairs.push({
               audioKey,

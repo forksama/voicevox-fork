@@ -53,6 +53,7 @@ export const audioItemSchema = z.object({
     speakerId: speakerIdSchema,
     styleId: styleIdSchema,
   }),
+  exportFileNameIndex: z.number().int().min(1).optional(),
   query: audioQuerySchema.optional(),
   presetKey: presetKeySchema.optional(),
   morphingInfo: morphingInfoSchema.optional(),

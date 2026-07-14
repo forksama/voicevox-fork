@@ -91,6 +91,7 @@ export type EditorAudioQuery = Omit<
 export type AudioItem = {
   text: string;
   voice: Voice;
+  exportFileNameIndex: number;
   query?: EditorAudioQuery;
   presetKey?: PresetKey;
   morphingInfo?: MorphingInfo;
@@ -239,6 +240,7 @@ export type AudioStoreTypes = {
     action(payload: {
       text?: string;
       voice?: Voice;
+      exportFileNameIndex?: number;
       presetKey?: PresetKey;
       baseAudioItem?: AudioItem;
     }): Promise<AudioItem>;
@@ -522,6 +524,11 @@ export type AudioCommandStoreTypes = {
       | { update: "AudioQuery"; query: EditorAudioQuery }
     );
     action(payload: { audioKey: AudioKey; text: string }): void;
+  };
+
+  COMMAND_SET_AUDIO_EXPORT_FILE_NAME_INDEX: {
+    mutation: { audioKey: AudioKey; exportFileNameIndex: number };
+    action(payload: { audioKey: AudioKey; exportFileNameIndex: number }): void;
   };
 
   COMMAND_MULTI_CHANGE_VOICE: {

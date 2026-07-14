@@ -17,6 +17,7 @@ import {
   TuningTranscription,
   isAccentPhrasesTextDifferent,
   buildAudioFileNameFromRawData,
+  buildSongTrackAudioFileNameFromRawData,
   getToolbarButtonName,
   isOnCommandOrCtrlKeyDown,
   filterCharacterInfosByStyleType,
@@ -263,8 +264,32 @@ test("buildAudioFileNameFromRawData", () => {
   };
   const result = buildAudioFileNameFromRawData(fileNamePattern, vars);
   expect(result).toBe(
-    "index=011 characterName=キャラ１ text=テストテキスト styleName=スタイル１ date=20210801 projectName=サンプルプロジェクト",
+    "index=10 characterName=キャラ１ text=テストテキスト styleName=スタイル１ date=20210801 projectName=サンプルプロジェクト",
   );
+});
+
+test("buildSongTrackAudioFileNameFromRawData", () => {
+  const result = buildSongTrackAudioFileNameFromRawData("$連番$", {
+    index: 10,
+    characterName: "キャラ１",
+    trackName: "トラック１",
+    styleName: "スタイル１",
+    date: "20210801",
+    projectName: "サンプルプロジェクト",
+  });
+  expect(result).toBe("011");
+});
+
+test("buildAudioFileNameFromRawData デフォルトテンプレート", () => {
+  const result = buildAudioFileNameFromRawData(undefined, {
+    index: 12,
+    characterName: "キャラ１",
+    text: "テストテキスト",
+    styleName: "スタイル１",
+    date: "20210801",
+    projectName: "サンプルプロジェクト",
+  });
+  expect(result).toBe("12-キャラ１（スタイル１）_テストテキスト");
 });
 
 test("getToolbarButtonName", () => {

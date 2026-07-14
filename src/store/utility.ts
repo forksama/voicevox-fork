@@ -150,9 +150,9 @@ const replaceTagStringToTagId: Record<string, string> = Object.entries(
 ).reduce((prev, [k, v]) => ({ ...prev, [v]: k }), {});
 
 export const DEFAULT_AUDIO_FILE_NAME_TEMPLATE =
-  "$連番$_$キャラ$（$スタイル$）_$テキスト$";
+  "$連番$-$キャラ$（$スタイル$）_$テキスト$";
 const DEFAULT_AUDIO_FILE_NAME_VARIABLES = {
-  index: 0,
+  index: 1,
   characterName: "四国めたん",
   text: "テキストテキストテキスト",
   styleName: DEFAULT_STYLE_NAME,
@@ -365,6 +365,7 @@ function formatCommonFileNameFromRawData(commonVars: {
   styleName: string;
   date: string;
   projectName: string;
+  indexFormat?: "raw" | "zeroPadding";
 }): {
   characterName: string;
   index: string;
@@ -373,7 +374,10 @@ function formatCommonFileNameFromRawData(commonVars: {
   projectName: string;
 } {
   const characterName = sanitizeFileName(commonVars.characterName);
-  const index = (commonVars.index + 1).toString().padStart(3, "0");
+  const index =
+    commonVars.indexFormat === "raw"
+      ? commonVars.index.toString()
+      : (commonVars.index + 1).toString().padStart(3, "0");
   const styleName = sanitizeFileName(commonVars.styleName);
   const date = commonVars.date;
   const projectName = sanitizeFileName(commonVars.projectName);
@@ -401,7 +405,10 @@ export function buildAudioFileNameFromRawData(
     text = text.substring(0, 9) + "…";
   }
 
-  const commonVars = formatCommonFileNameFromRawData(vars);
+  const commonVars = formatCommonFileNameFromRawData({
+    ...vars,
+    indexFormat: "raw",
+  });
 
   return replaceTag(pattern, {
     ...commonVars,

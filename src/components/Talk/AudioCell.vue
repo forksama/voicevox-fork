@@ -83,17 +83,6 @@
         文章が長いと正常に動作しない可能性があります。
         句読点の位置で文章を分割してください。
       </template>
-      <template v-if="enableDeleteButton" #after>
-        <QBtn
-          round
-          flat
-          icon="delete_outline"
-          size="0.8rem"
-          :disable="uiLocked"
-          :aria-label="`${textLineNumberIndex}行目を削除`"
-          @click="removeCell"
-        />
-      </template>
       <ContextMenu
         ref="contextMenu"
         :header="contextMenuHeader"
@@ -105,6 +94,35 @@
         @beforeHide="endContextMenuOperation()"
       />
     </QInput>
+    <QInput
+      ref="exportFileNameIndexField"
+      filled
+      dense
+      hideBottomSpace
+      class="export-file-name-index"
+      color="primary"
+      type="number"
+      min="1"
+      step="1"
+      :disable="uiLocked"
+      :modelValue="exportFileNameIndexBuffer"
+      :aria-label="`${textLineNumberIndex}行目の書き出し番号`"
+      @update:modelValue="setExportFileNameIndexBuffer"
+      @focus="selectAndSetActiveAudioKey"
+      @blur="pushExportFileNameIndexIfNeeded()"
+      @keydown.prevent.enter.exact="pushExportFileNameIndexIfNeeded"
+    />
+    <QBtn
+      v-if="enableDeleteButton"
+      round
+      flat
+      icon="delete_outline"
+      size="0.8rem"
+      class="delete-audio-cell-button"
+      :disable="uiLocked"
+      :aria-label="`${textLineNumberIndex}行目を削除`"
+      @click="removeCell"
+    />
   </div>
 </template>
 
@@ -294,6 +312,18 @@ const setAudioTextBuffer = (text: string | number | null) => {
   audioTextBuffer.value = text;
   isChangeFlag.value = true;
 };
+const exportFileNameIndexBuffer = ref(
+  audioItem.value.exportFileNameIndex.toString(),
+);
+const isExportFileNameIndexChangeFlag = ref(false);
+const setExportFileNameIndexBuffer = (index: string | number | null) => {
+  if (index == undefined) {
+    exportFileNameIndexBuffer.value = "";
+  } else {
+    exportFileNameIndexBuffer.value = index.toString();
+  }
+  isExportFileNameIndexChangeFlag.value = true;
+};
 
 watch(
   // `audioItem` becomes undefined just before the component is unmounted.
@@ -301,6 +331,17 @@ watch(
   (newText) => {
     if (!isChangeFlag.value && newText != undefined) {
       audioTextBuffer.value = newText;
+    }
+  },
+);
+watch(
+  () => audioItem.value?.exportFileNameIndex,
+  (newExportFileNameIndex) => {
+    if (
+      !isExportFileNameIndexChangeFlag.value &&
+      newExportFileNameIndex != undefined
+    ) {
+      exportFileNameIndexBuffer.value = newExportFileNameIndex.toString();
     }
   },
 );
@@ -314,6 +355,22 @@ const pushAudioTextIfNeeded = async (event?: KeyboardEvent) => {
       text: audioTextBuffer.value,
     });
   }
+};
+const pushExportFileNameIndexIfNeeded = async (event?: KeyboardEvent) => {
+  if (event && event.isComposing) return;
+  if (!isExportFileNameIndexChangeFlag.value || willFocusOrBlur.value) return;
+
+  const parsedIndex = Number(exportFileNameIndexBuffer.value);
+  const exportFileNameIndex = Number.isFinite(parsedIndex)
+    ? Math.max(1, Math.trunc(parsedIndex))
+    : audioItem.value.exportFileNameIndex;
+
+  exportFileNameIndexBuffer.value = exportFileNameIndex.toString();
+  isExportFileNameIndexChangeFlag.value = false;
+  await store.actions.COMMAND_SET_AUDIO_EXPORT_FILE_NAME_INDEX({
+    audioKey: props.audioKey,
+    exportFileNameIndex,
+  });
 };
 
 // バグ修正用
@@ -657,6 +714,7 @@ const root = ref<HTMLElement>();
 
 // テキスト欄
 const textField = ref<QInput>();
+const exportFileNameIndexField = ref<QInput>();
 const textFieldSelection = new SelectionHelperForQInput(textField);
 
 // 複数エンジン
@@ -731,7 +789,23 @@ const isMultipleEngine = computed(() => store.state.engineIds.length > 1);
     }
   }
 
-  &:not(:hover) > .q-input > .q-field__after > .q-btn:not(:focus):not(:active) {
+  .export-file-name-index {
+    flex: 0 0 4.5rem;
+    width: 4.5rem;
+
+    :deep(input) {
+      text-align: right;
+    }
+  }
+
+  .delete-audio-cell-button {
+    flex: 0 0 2rem;
+    height: 2rem;
+    min-height: 2rem;
+    margin-left: -0.5rem;
+  }
+
+  &:not(:hover) > .delete-audio-cell-button:not(:focus):not(:active) {
     @include visually-hidden.visually-hidden;
   }
 
