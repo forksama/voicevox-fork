@@ -55,6 +55,23 @@
         }
       "
     />
+    <!-- 立絵マッピング用: 行内の立絵サムネイル。クリックで選択ダイアログを開く -->
+    <button
+      class="portrait-thumb-inline"
+      :class="{ empty: !portraitObjectUrl }"
+      :disabled="uiLocked"
+      :title="audioItem.portraitPath || '立絵を選択'"
+      :aria-label="`${textLineNumberIndex}行目の立絵を選択`"
+      @click="openPortraitPicker"
+    >
+      <img v-if="portraitObjectUrl" :src="portraitObjectUrl" alt="立絵" />
+      <QIcon v-else name="add_photo_alternate" size="1.1rem" />
+    </button>
+    <PortraitPickerDialog
+      v-model="portraitPickerOpen"
+      :initialPortraitPath="audioItem.portraitPath"
+      @confirm="onPortraitConfirm"
+    />
     <!--
       input.valueをスクリプトから変更した場合は@changeが発火しないため、
       @blurと@keydown.prevent.enter.exactに分けている
@@ -127,9 +144,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, watch, ref, nextTick } from "vue";
+import { computed, watch, ref, nextTick, onUnmounted } from "vue";
 import { QInput } from "quasar";
 import CharacterButton from "@/components/CharacterButton.vue";
+import PortraitPickerDialog from "@/components/Talk/PortraitPickerDialog.vue";
 import { MenuItemButton, MenuItemSeparator } from "@/components/Menu/type";
 import ContextMenu from "@/components/Menu/ContextMenu/Container.vue";
 import { useStore } from "@/store";
@@ -141,6 +159,7 @@ import {
   useCommandOrControlKey,
 } from "@/composables/useModifierKey";
 import { getDefaultStyle } from "@/domain/talk";
+import { loadLocalImageObjectUrl } from "@/helpers/voicePortraitMapping";
 
 const props = defineProps<{
   audioKey: AudioKey;
@@ -192,6 +211,46 @@ const isInitializingSpeaker = computed(() =>
 const audioItem = computed(() => store.state.audioItems[props.audioKey]);
 
 const uiLocked = computed(() => store.getters.UI_LOCKED);
+
+// --- 立絵マッピング: 行内サムネイル & 選択ダイアログ ---
+const portraitPickerOpen = ref(false);
+const portraitObjectUrl = ref<string>("");
+
+// 現在の portraitPath から表示用 object URL を生成する
+watch(
+  () => audioItem.value?.portraitPath,
+  async (newPath) => {
+    // 以前の URL を解放
+    if (portraitObjectUrl.value) {
+      URL.revokeObjectURL(portraitObjectUrl.value);
+      portraitObjectUrl.value = "";
+    }
+    if (newPath) {
+      const url = await loadLocalImageObjectUrl(newPath);
+      if (url) portraitObjectUrl.value = url;
+    }
+  },
+  { immediate: true },
+);
+
+onUnmounted(() => {
+  if (portraitObjectUrl.value) {
+    URL.revokeObjectURL(portraitObjectUrl.value);
+  }
+});
+
+const openPortraitPicker = () => {
+  if (uiLocked.value) return;
+  portraitPickerOpen.value = true;
+};
+
+const onPortraitConfirm = (portraitAbsPath: string) => {
+  void store.actions.COMMAND_SET_AUDIO_PORTRAIT_PATH({
+    audioKey: props.audioKey,
+    portraitPath: portraitAbsPath,
+    autoFillByRole: store.state.savingSetting.vpmAutoFillByRole,
+  });
+};
 
 const isMultiSelectEnabled = computed(() => store.state.enableMultiSelect);
 
@@ -803,6 +862,42 @@ const isMultipleEngine = computed(() => store.state.engineIds.length > 1);
     height: 2rem;
     min-height: 2rem;
     margin-left: -0.5rem;
+  }
+
+  .portrait-thumb-inline {
+    flex: 0 0 2rem;
+    width: 2rem;
+    height: 2rem;
+    padding: 0;
+    border: 1px solid colors.$primary;
+    border-radius: 4px;
+    background: rgba(colors.$display-rgb, 0.04);
+    cursor: pointer;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: colors.$display;
+
+    &:hover:not(:disabled) {
+      border-color: colors.$primary;
+      background: rgba(colors.$primary-rgb, 0.12);
+    }
+
+    &:disabled {
+      cursor: default;
+      opacity: 0.5;
+    }
+
+    &.empty {
+      opacity: 0.6;
+    }
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
   }
 
   &:not(:hover) > .delete-audio-cell-button:not(:focus):not(:active) {

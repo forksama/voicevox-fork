@@ -533,6 +533,21 @@ export type AudioCommandStoreTypes = {
     action(payload: { audioKey: AudioKey; exportFileNameIndex: number }): void;
   };
 
+  COMMAND_SET_AUDIO_PORTRAIT_PATH: {
+    // 立絵マッピング用: 立絵の絶対パスを設定する。
+    // autoFillByRole が有効なら、同一 role で未設定の行にも同じ立絵を埋める。
+    mutation: {
+      audioKey: AudioKey;
+      portraitPath: string;
+      autoFillByRole: boolean;
+    };
+    action(payload: {
+      audioKey: AudioKey;
+      portraitPath: string;
+      autoFillByRole: boolean;
+    }): void;
+  };
+
   COMMAND_MULTI_CHANGE_VOICE: {
     mutation: {
       voice: Voice;

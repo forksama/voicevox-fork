@@ -2026,6 +2026,31 @@ export const audioCommandStore = transformCommandStore(
       },
     },
 
+    COMMAND_SET_AUDIO_PORTRAIT_PATH: {
+      mutation(draft, { audioKey, portraitPath, autoFillByRole }) {
+        const target = draft.audioItems[audioKey];
+        if (target == undefined) return;
+        target.portraitPath = portraitPath;
+        // 同一 role (speakerId) で立絵未設定の行に自動填充する
+        if (autoFillByRole) {
+          const targetSpeakerId = target.voice.speakerId;
+          for (const key of draft.audioKeys) {
+            const item = draft.audioItems[key];
+            if (item == undefined) continue;
+            if (
+              item.voice.speakerId === targetSpeakerId &&
+              (item.portraitPath == undefined || item.portraitPath === "")
+            ) {
+              item.portraitPath = portraitPath;
+            }
+          }
+        }
+      },
+      action({ mutations }, payload) {
+        mutations.COMMAND_SET_AUDIO_PORTRAIT_PATH(payload);
+      },
+    },
+
     COMMAND_CHANGE_DISPLAY_TEXT: {
       /**
        * 読みを変えずにテキストだけを変える
