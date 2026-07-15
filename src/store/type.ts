@@ -95,6 +95,8 @@ export type AudioItem = {
   query?: EditorAudioQuery;
   presetKey?: PresetKey;
   morphingInfo?: MorphingInfo;
+  // 立绘映射: 该行选中的立绘绝对路径 (导出时换算为相对立绘目录的路径)。
+  portraitPath?: string;
 };
 
 export type AudioState = {

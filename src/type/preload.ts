@@ -419,6 +419,10 @@ export function getConfigSchema({ isMac }: { isMac: boolean }) {
           outputStereo: z.boolean().default(false),
           audioOutputDevice: z.string().default(""),
           songTrackFileNamePattern: z.string().default(""),
+          // 立绘映射 (voice-portrait mapping) 三方共享设置
+          vpmWorkingDir: z.string().default(""), // 工作目录: 音频与映射写入基准
+          vpmPortraitDir: z.string().default(""), // 立绘目录: 立绘相对路径基准 (三方需一致)
+          vpmAutoFillByRole: z.boolean().default(true), // 按角色自动填充立绘
         })
         .default({}),
       hotkeySettings: hotkeySettingSchema

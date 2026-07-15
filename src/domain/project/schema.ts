@@ -57,6 +57,9 @@ export const audioItemSchema = z.object({
   query: audioQuerySchema.optional(),
   presetKey: presetKeySchema.optional(),
   morphingInfo: morphingInfoSchema.optional(),
+  // 立绘映射: 该行选中的立绘绝对路径 (导出时换算为相对立绘目录的路径写入映射文件)。
+  // optional 且不参与旧工程迁移——老工程无此字段时为 undefined。
+  portraitPath: z.string().optional(),
 });
 
 // ソング系のスキーマ
