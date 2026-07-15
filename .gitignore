@@ -53,3 +53,9 @@ vendored
 
 # Cache
 .eslintcache
+
+# Downloaded VOICEVOX engine (for local packaging, do not commit)
+/voicevox_engine_dl
+
+# WorkBuddy workspace metadata
+/.workbuddy
