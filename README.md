@@ -116,6 +116,35 @@ pnpm run browser:serve
 pnpm run electron:build
 ```
 
+### プラットフォーム別の注意点
+
+#### macOS でのビルド
+
+- **エンジンの実行ファイル名**: `.env.production` のデフォルト値 `"executionFilePath": "vv-engine/run.exe"` は Windows 向けです。macOS でビルドする場合は `"run.exe"` を `"run"` に変更してください。
+- **コード署名**: macOS ではコード署名がないアプリは起動できません。このリポジトリではビルド時に ad-hoc 署名 (`build/afterPack.ts`) を自動で行うため、追加の設定は不要です。ただし Apple Developer ID による署名ではないため、初回起動時に「開発元を確認できないため開けません」と表示された場合は、右クリック →「開く」で起動してください。
+
+#### Windows でのビルド
+
+- 追加の設定は不要です。`.env.production` のデフォルト値がそのまま使用できます。
+
+#### 中国国内からのビルド
+
+中国国内から Electron バイナリをダウンロードする場合は、`.npmrc` に以下の設定を追加してください：
+
+```
+electron_mirror=https://npmmirror.com/mirrors/electron/
+```
+
+また、pnpm の `safe-delete` 保護によってビルドが中断される場合は、以下を `.npmrc` に追加してください：
+
+```
+safe-delete-interval=0
+safe-delete-threshold=999999
+```
+
+> [!NOTE]
+> これらの設定は中国国内のネットワーク環境に依存するため、リポジトリのデフォルト設定には含めていません。必要に応じて各自で追加してください。
+
 ### Github Actions でビルド
 
 fork したリポジトリで Actions を ON にし、workflow_dispatch で`build.yml`を起動すればビルドできます。

@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process";
 import { FuseConfig, FuseV1Options, FuseVersion } from "@electron/fuses";
 import { AfterPackContext } from "electron-builder";
 
@@ -12,4 +13,13 @@ export default async function afterPack(context: AfterPackContext) {
     [FuseV1Options.GrantFileProtocolExtraPrivileges]: false,
   };
   await context.packager.addElectronFuses(context, fuses);
+
+  // macOS: ad-hoc code signing so the app can run without a Developer ID certificate
+  if (context.electronPlatformName === "darwin") {
+    console.log("  • ad-hoc signing VOICEVOX.app");
+    execSync(
+      `codesign --force --deep -s - "${context.appOutDir}/VOICEVOX.app"`,
+      { stdio: "inherit" },
+    );
+  }
 }
