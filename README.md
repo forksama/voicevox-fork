@@ -122,6 +122,7 @@ pnpm run electron:build
 
 - **エンジンの実行ファイル名**: `.env.production` のデフォルト値 `"executionFilePath": "vv-engine/run.exe"` は Windows 向けです。macOS でビルドする場合は `"run.exe"` を `"run"` に変更してください。
 - **コード署名**: macOS ではコード署名がないアプリは起動できません。このリポジトリではビルド時に ad-hoc 署名 (`build/afterPack.ts`) を自動で行うため、追加の設定は不要です。ただし Apple Developer ID による署名ではないため、初回起動時に「開発元を確認できないため開けません」と表示された場合は、右クリック →「開く」で起動してください。
+- **エンジンの同梱**: 本体には TTS エンジンが含まれないため、別途ダウンロードして注入する必要があります。クローンから DMG 生成までの完全な手順（エンジンのダウンロード・展開、`VOICEVOX_ENGINE_DIR` の設定、署名の仕組み、トラブルシューティング）は [`docs/build-macos-zh.md`](docs/build-macos-zh.md)（中文）にまとめています。
 
 #### Windows でのビルド
 
