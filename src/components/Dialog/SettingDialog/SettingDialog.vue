@@ -314,6 +314,61 @@
                   @buttonClick="showSongTrackAudioFilePatternEditDialog = true"
                 />
               </div>
+              <!-- Voice-Portrait Mapping Card -->
+              <div class="setting-card">
+                <h5 class="headline">立絵マッピング</h5>
+                <p class="text-caption q-mb-sm" style="opacity: 0.8">
+                  作業ディレクトリを設定すると、トークの一括書き出しは
+                  <b>作業ディレクトリ/media/voice/audio/</b>
+                  へ保存され、<b>voice-portrait-map.json</b>
+                  が自動生成されます。⚠️ 立絵ディレクトリは GPT-SoVITS / VOICEVOX
+                  / UXP の三方で一致させてください。
+                </p>
+                <BaseRowCard
+                  title="作業ディレクトリ"
+                  description="音声と映射ファイルの基準。空にすると通常の書き出しに戻ります。"
+                >
+                  <span class="vpm-dir-path">{{
+                    savingSetting.vpmWorkingDir || "(未設定)"
+                  }}</span>
+                  <BaseButton
+                    icon="folder_open"
+                    label="選択"
+                    @click="selectVpmWorkingDir()"
+                  />
+                  <BaseButton
+                    v-if="savingSetting.vpmWorkingDir"
+                    label="クリア"
+                    @click="handleSavingSettingChange('vpmWorkingDir', '')"
+                  />
+                </BaseRowCard>
+                <BaseRowCard
+                  title="立絵ディレクトリ"
+                  description="立絵の相対パス基準。三方で一致させる必要があります。"
+                >
+                  <span class="vpm-dir-path">{{
+                    savingSetting.vpmPortraitDir || "(未設定)"
+                  }}</span>
+                  <BaseButton
+                    icon="folder_open"
+                    label="選択"
+                    @click="selectVpmPortraitDir()"
+                  />
+                  <BaseButton
+                    v-if="savingSetting.vpmPortraitDir"
+                    label="クリア"
+                    @click="handleSavingSettingChange('vpmPortraitDir', '')"
+                  />
+                </BaseRowCard>
+                <ToggleCell
+                  title="役割で立絵を自動填充"
+                  description="ONの場合、ある役割の行で立絵を設定すると、同じ役割の未設定行にも同じ立絵が自動的に設定されます。"
+                  :modelValue="savingSetting.vpmAutoFillByRole"
+                  @update:modelValue="
+                    handleSavingSettingChange('vpmAutoFillByRole', $event)
+                  "
+                />
+              </div>
               <!-- Theme Card -->
               <div class="setting-card">
                 <h5 class="headline">外観</h5>
@@ -851,6 +906,25 @@ const selectFixedExportDir = async () => {
   const path = await openFileExplore();
   if (path != undefined) {
     handleSavingSettingChange("fixedExportDir", path);
+  }
+};
+
+// 立絵マッピング: 作業ディレクトリ / 立絵ディレクトリを選択する
+const selectVpmWorkingDir = async () => {
+  const path = await window.backend.showOpenDirectoryDialog({
+    title: "作業ディレクトリを選択",
+  });
+  if (path != undefined) {
+    handleSavingSettingChange("vpmWorkingDir", path);
+  }
+};
+
+const selectVpmPortraitDir = async () => {
+  const path = await window.backend.showOpenDirectoryDialog({
+    title: "立絵ディレクトリを選択 (三方で一致させてください)",
+  });
+  if (path != undefined) {
+    handleSavingSettingChange("vpmPortraitDir", path);
   }
 };
 
