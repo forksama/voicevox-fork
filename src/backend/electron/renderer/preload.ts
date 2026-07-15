@@ -70,6 +70,10 @@ const api: Sandbox = {
     return await ipcRendererInvokeProxy.READ_FILE({ filePath });
   },
 
+  vpmListDirectory: async ({ dirPath }) => {
+    return await ipcRendererInvokeProxy.VPM_LIST_DIRECTORY({ dirPath });
+  },
+
   isAvailableGPUMode: () => {
     return ipcRendererInvokeProxy.IS_AVAILABLE_GPU_MODE();
   },

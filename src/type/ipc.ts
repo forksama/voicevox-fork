@@ -225,6 +225,12 @@ export type IpcIHData = {
     args: [obj: { filePath: string }];
     return: Result<Uint8Array>;
   };
+
+  // 立絵マッピング用: ディレクトリ直下のサブフォルダと画像ファイルを列挙する
+  VPM_LIST_DIRECTORY: {
+    args: [obj: { dirPath: string }];
+    return: Result<{ subDirs: string[]; imageFiles: string[] }>;
+  };
 };
 
 /**

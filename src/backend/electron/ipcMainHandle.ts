@@ -357,5 +357,49 @@ export function getIpcMainHandle(params: {
         return failure(a.code, a);
       }
     },
+
+    VPM_LIST_DIRECTORY: async (_, { dirPath }) => {
+      try {
+        const imageExts = new Set([
+          ".png",
+          ".jpg",
+          ".jpeg",
+          ".webp",
+          ".gif",
+          ".bmp",
+        ]);
+        const entries = await fs.promises.readdir(dirPath, {
+          withFileTypes: true,
+        });
+        const subDirs: string[] = [];
+        const imageFiles: string[] = [];
+        for (const entry of entries) {
+          if (entry.isDirectory()) {
+            subDirs.push(entry.name);
+          } else if (entry.isFile()) {
+            const ext = path.extname(entry.name).toLowerCase();
+            if (imageExts.has(ext)) {
+              // Git LFS ポインタファイル (< 500 bytes) を除外
+              try {
+                const stat = await fs.promises.stat(
+                  path.join(dirPath, entry.name),
+                );
+                if (stat.size > 500) {
+                  imageFiles.push(entry.name);
+                }
+              } catch {
+                // stat 失敗時はスキップ
+              }
+            }
+          }
+        }
+        subDirs.sort((a, b) => a.localeCompare(b));
+        imageFiles.sort((a, b) => a.localeCompare(b));
+        return success({ subDirs, imageFiles });
+      } catch (e) {
+        const a = e as SystemError;
+        return failure(a.code, a);
+      }
+    },
   };
 }

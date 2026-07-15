@@ -124,6 +124,10 @@ export const api: Sandbox = {
   readFile(obj: { filePath: string }) {
     return readFileImpl(obj.filePath);
   },
+  vpmListDirectory() {
+    // ブラウザ版ではローカルディレクトリの列挙は非対応
+    throw new Error(`Not supported on Browser version: vpmListDirectory`);
+  },
   isAvailableGPUMode() {
     // TODO: WebAssembly版をサポートする時に実装する
     // FIXME: canvasでWebGLから調べたり、WebGPUがサポートされているかを調べたりで判断は出来そう

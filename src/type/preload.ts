@@ -93,6 +93,10 @@ export interface Sandbox {
     buffer: ArrayBuffer | Uint8Array;
   }): Promise<Result<undefined>>;
   readFile(obj: { filePath: string }): Promise<Result<Uint8Array>>;
+  // 立絵マッピング用: ディレクトリ直下のサブフォルダと画像ファイル名を列挙する
+  vpmListDirectory(obj: {
+    dirPath: string;
+  }): Promise<Result<{ subDirs: string[]; imageFiles: string[] }>>;
   isAvailableGPUMode(): Promise<boolean>;
   isMaximizedWindow(): Promise<boolean>;
   onReceivedIPCMsg(listeners: {
