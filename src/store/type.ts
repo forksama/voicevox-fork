@@ -452,6 +452,20 @@ export type AudioStoreTypes = {
     }): SaveResultObject[] | "canceled";
   };
 
+  VPM_MULTI_GENERATE_AND_SAVE_AUDIO: {
+    // 立絵マッピングモードの一括書き出し。
+    // <作業ディレクトリ>/media/voice/audio/ へ書き出し、映射ファイルを更新する。
+    action(payload: {
+      audioKeys: AudioKey[];
+      callback?: (finishedCount: number) => void;
+    }): SaveResultObject[];
+  };
+
+  VPM_CHECK_OVERWRITE_ORDERS: {
+    // 一括書き出しで既存の映射条目を上書きする order を返す (確認ダイアログ用)。
+    action(payload: { audioKeys: AudioKey[] }): Promise<number[]>;
+  };
+
   GENERATE_AND_CONNECT_AND_SAVE_AUDIO: {
     action(payload: {
       filePath?: string;

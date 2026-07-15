@@ -170,6 +170,39 @@ export const showQuestionDialog = async (options: QuestionDialogOptions) => {
   return index;
 };
 
+/**
+ * 立絵マッピングモードで、これから書き出す audioKeys のうち既存の映射条目を
+ * 上書きする order があれば確認ダイアログを出す。
+ * 続行してよければ true、キャンセルなら false を返す。
+ * (VPM モードでない、または衝突がなければ何も出さず true)
+ */
+async function confirmVpmOverwriteIfNeeded(
+  audioKeys: AudioKey[],
+  actions: DotNotationDispatch<AllActions>,
+): Promise<boolean> {
+  const overwriteOrders = await actions.VPM_CHECK_OVERWRITE_ORDERS({
+    audioKeys,
+  });
+  if (overwriteOrders.length === 0) return true;
+  const sorted = [...new Set(overwriteOrders)].sort((a, b) => a - b);
+  const preview =
+    sorted.length > 20
+      ? `${sorted.slice(0, 20).join(", ")} など${sorted.length}件`
+      : sorted.join(", ");
+  const result = await showQuestionDialog({
+    type: "warning",
+    title: "既存の映射条目を上書きします",
+    message:
+      `映射ファイルに既に存在する序号 (order) があります：${preview}。\n` +
+      `続行するとこれらの条目は今回の内容で上書きされます。よろしいですか？`,
+    buttons: ["キャンセル", { text: "上書きして続行", color: "warning" }],
+    cancel: 0,
+    default: 0,
+  });
+  // index 1 = 上書きして続行
+  return result === 1;
+}
+
 export async function generateAndSaveOneAudioWithDialog({
   audioKey,
   actions,
@@ -181,6 +214,9 @@ export async function generateAndSaveOneAudioWithDialog({
   filePath?: string;
   disableNotifyOnGenerate: boolean;
 }): Promise<void> {
+  // 立絵マッピングモード: 既存条目を上書きする場合は確認する。
+  if (!(await confirmVpmOverwriteIfNeeded([audioKey], actions))) return;
+
   const result: SaveResultObject = await withProgress(
     actions.GENERATE_AND_SAVE_AUDIO({
       audioKey,
@@ -204,6 +240,9 @@ export async function multiGenerateAndSaveAudioWithDialog({
   dirPath?: string;
   disableNotifyOnGenerate: boolean;
 }): Promise<void> {
+  // 立絵マッピングモード: 既存の映射条目を上書きする order があれば確認する。
+  if (!(await confirmVpmOverwriteIfNeeded(audioKeys, actions))) return;
+
   const result = await withProgress(
     actions.MULTI_GENERATE_AND_SAVE_AUDIO({
       audioKeys,

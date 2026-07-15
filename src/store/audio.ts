@@ -64,6 +64,15 @@ import { cloneWithUnwrapProxy } from "@/helpers/cloneWithUnwrapProxy";
 import { UnreachableError } from "@/type/utility";
 import { errorToMessage } from "@/helpers/errorHelper";
 import path from "@/helpers/path";
+import {
+  createEmptyMapping,
+  mappingFilePath,
+  audioOutputDir,
+  toAudioRelPath,
+  toPortraitRelPath,
+  upsertMappingItem,
+  type VpmMappingFile,
+} from "@/helpers/voicePortraitMapping";
 import { generateTextFileData } from "@/helpers/fileDataGenerator";
 
 function generateAudioKey() {
@@ -1452,6 +1461,16 @@ export const audioStore = createPartialStore<AudioStoreTypes>({
           filePath?: string;
         },
       ): Promise<SaveResultObject> => {
+        // 立絵マッピングモード: 作業ディレクトリが設定されている場合は
+        // 単一書き出しも VPM ロジックへ委譲し、映射ファイルを更新する。
+        // (一括書き出しと挙動を揃えるため)
+        if (state.savingSetting.vpmWorkingDir) {
+          const results = await actions.VPM_MULTI_GENERATE_AND_SAVE_AUDIO({
+            audioKeys: [audioKey],
+          });
+          return results[0] ?? { result: "WRITE_ERROR", path: "" };
+        }
+
         const defaultAudioFileName = getters.DEFAULT_AUDIO_FILE_NAME(audioKey);
         if (state.savingSetting.fixedExportEnabled) {
           filePath = path.join(
@@ -1558,6 +1577,16 @@ export const audioStore = createPartialStore<AudioStoreTypes>({
           callback?: (finishedCount: number) => void;
         },
       ) => {
+        // 立絵マッピングモード: 作業ディレクトリが設定されている場合は
+        // <作業ディレクトリ>/media/voice/audio/ へ書き出し、映射ファイルを更新する。
+        const vpmWorkingDir = state.savingSetting.vpmWorkingDir;
+        if (vpmWorkingDir) {
+          return await actions.VPM_MULTI_GENERATE_AND_SAVE_AUDIO({
+            audioKeys,
+            callback,
+          });
+        }
+
         if (state.savingSetting.fixedExportEnabled) {
           dirPath = state.savingSetting.fixedExportDir;
         } else {
@@ -1585,6 +1614,177 @@ export const audioStore = createPartialStore<AudioStoreTypes>({
             });
         });
         return Promise.all(promises);
+      },
+    ),
+  },
+
+  VPM_CHECK_OVERWRITE_ORDERS: {
+    // 立絵マッピング一括書き出しで、既存の映射条目を上書きする order を返す。
+    // ダイアログ側で確認を出すために使う。
+    action: async (
+      { state },
+      { audioKeys }: { audioKeys: AudioKey[] },
+    ): Promise<number[]> => {
+      const workingDir = state.savingSetting.vpmWorkingDir;
+      if (!workingDir) return [];
+      const mapPath = mappingFilePath(workingDir);
+      let existingOrders = new Set<number>();
+      try {
+        const exists = await window.backend.checkFileExists(mapPath);
+        if (!exists) return [];
+        const readResult = await window.backend.readFile({ filePath: mapPath });
+        if (!readResult.ok) return [];
+        const text = new TextDecoder().decode(readResult.value);
+        const parsed = JSON.parse(text) as Partial<VpmMappingFile>;
+        if (parsed && Array.isArray(parsed.items)) {
+          existingOrders = new Set(parsed.items.map((it) => it.order));
+        }
+      } catch (e) {
+        window.backend.logWarn(
+          `[VPM] 上書きチェックに失敗しました: ${String(e)}`,
+        );
+        return [];
+      }
+      // 書き出し対象の order のうち、既存に含まれるものを返す
+      const conflicts: number[] = [];
+      for (const audioKey of audioKeys) {
+        const item = state.audioItems[audioKey];
+        if (item && existingOrders.has(item.exportFileNameIndex)) {
+          conflicts.push(item.exportFileNameIndex);
+        }
+      }
+      return conflicts;
+    },
+  },
+
+  VPM_MULTI_GENERATE_AND_SAVE_AUDIO: {
+    action: createUILockAction(
+      async (
+        { state, getters, actions },
+        {
+          audioKeys,
+          callback,
+        }: {
+          audioKeys: AudioKey[];
+          callback?: (finishedCount: number) => void;
+        },
+      ): Promise<SaveResultObject[]> => {
+        const workingDir = state.savingSetting.vpmWorkingDir;
+        const portraitDir = state.savingSetting.vpmPortraitDir;
+        const outDir = audioOutputDir(workingDir);
+        const mapPath = mappingFilePath(workingDir);
+
+        // 既存の映射ファイルを読み込む (無ければ空で作成)
+        let mapping: VpmMappingFile = createEmptyMapping();
+        try {
+          const exists = await window.backend.checkFileExists(mapPath);
+          if (exists) {
+            const readResult = await window.backend.readFile({
+              filePath: mapPath,
+            });
+            if (readResult.ok) {
+              const text = new TextDecoder().decode(readResult.value);
+              const parsed = JSON.parse(text) as Partial<VpmMappingFile>;
+              if (parsed && Array.isArray(parsed.items)) {
+                mapping = {
+                  ...createEmptyMapping(),
+                  ...parsed,
+                  items: parsed.items,
+                } as VpmMappingFile;
+              }
+            }
+          }
+        } catch (e) {
+          window.backend.logWarn(
+            `[VPM] 映射ファイルの読み込みに失敗しました: ${String(e)}`,
+          );
+        }
+
+        let finishedCount = 0;
+        const results: SaveResultObject[] = [];
+
+        for (const audioKey of audioKeys) {
+          const audioItem = state.audioItems[audioKey];
+          const order = audioItem.exportFileNameIndex;
+          const baseName = getters.DEFAULT_AUDIO_FILE_NAME(audioKey);
+          // 序号(前導ゼロなし) + 元のファイル名
+          const fileName = `${order}-${baseName}`;
+          const filePath = path.join(outDir, fileName);
+
+          let fetchAudioResult: FetchAudioResult;
+          try {
+            fetchAudioResult = await actions.FETCH_AUDIO({ audioKey });
+          } catch (e) {
+            const errorMessage = handlePossiblyNotMorphableError(e);
+            results.push({
+              result: "ENGINE_ERROR",
+              path: filePath,
+              errorMessage,
+            });
+            callback?.(++finishedCount);
+            continue;
+          }
+
+          const { blob } = fetchAudioResult;
+          try {
+            await window.backend
+              .writeFile({
+                filePath,
+                buffer: await blob.arrayBuffer(),
+              })
+              .then(getValueOrThrow);
+          } catch (e) {
+            window.backend.logError(e);
+            results.push({
+              result:
+                e instanceof ResultError ? "WRITE_ERROR" : "UNKNOWN_ERROR",
+              path: filePath,
+              errorMessage:
+                e instanceof ResultError
+                  ? generateWriteErrorMessage(e)
+                  : (e instanceof Error ? e.message : String(e)) ||
+                    "不明なエラーが発生しました。",
+            });
+            callback?.(++finishedCount);
+            continue;
+          }
+
+          // 書き出し成功 → 映射条目を追加/更新
+          const role = getters.VOICE_NAME(audioItem.voice);
+          const portraitRelPath = audioItem.portraitPath
+            ? toPortraitRelPath(portraitDir, audioItem.portraitPath)
+            : "";
+          upsertMappingItem(mapping, {
+            order,
+            audioFileName: fileName,
+            audioRelPath: toAudioRelPath(workingDir, filePath),
+            portraitRelPath,
+            role,
+            engine: "voicevox",
+            text: audioItem.text,
+          });
+
+          results.push({ result: "SUCCESS", path: filePath });
+          callback?.(++finishedCount);
+        }
+
+        // 映射ファイルを書き出す (成功した条目がある場合のみ)
+        const hasSuccess = results.some((r) => r.result === "SUCCESS");
+        if (hasSuccess) {
+          try {
+            const json = JSON.stringify(mapping, null, 2);
+            await window.backend
+              .writeFile({
+                filePath: mapPath,
+                buffer: new TextEncoder().encode(json),
+              })
+              .then(getValueOrThrow);
+          } catch (e) {
+            window.backend.logError(e);
+          }
+        }
+
+        return results;
       },
     ),
   },
