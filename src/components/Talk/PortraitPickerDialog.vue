@@ -30,7 +30,7 @@
             @click="pickPortraitDir"
           />
         </div>
-        <!-- 相対ディレクトリ: 手入力 (多階層可, 例 1.立絵/10 燐羽立絵) -->
+        <!-- 相対ディレクトリ: 手入力 (多階層可, 例 role_a/subdir) -->
         <QInput
           v-model="roleRelDir"
           dense
@@ -38,7 +38,7 @@
           clearable
           class="q-mt-sm"
           label="役割立絵相対ディレクトリ (立絵ディレクトリ基準, 多階層可)"
-          placeholder="例: 1.立絵/10 燐羽立絵"
+          placeholder="例: role_a/subdir"
           @change="onRoleRelDirChange"
           @clear="onRoleRelDirClear"
         />
