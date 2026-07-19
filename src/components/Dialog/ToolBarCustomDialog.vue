@@ -162,6 +162,8 @@ const usableButtonsDesc: Record<ToolbarButtonTagType, string> = {
   UNDO: "操作を一つ戻します。",
   REDO: "元に戻した操作をやり直します。",
   IMPORT_TEXT: "テキストファイル(.txt)を読み込みます。",
+  D_DRIVEN_BATCH_FILL:
+    "作業ディレクトリ内の pr-subtitles-D.json を読み込み、角色ごとの音色割り当てでまとめて台本に流し込みます。",
   EMPTY:
     "これはボタンではありません。レイアウトの調整に使います。また、実際には表示されません。",
 };

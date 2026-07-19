@@ -72,6 +72,9 @@
       :initialPortraitPath="audioItem.portraitPath"
       @confirm="onPortraitConfirm"
     />
+    <div v-if="dDrivenBadge" class="d-driven-badge" :title="dDrivenBadge">
+      {{ dDrivenBadge }}
+    </div>
     <!--
       input.valueをスクリプトから変更した場合は@changeが発火しないため、
       @blurと@keydown.prevent.enter.exactに分けている
@@ -209,6 +212,11 @@ const isInitializingSpeaker = computed(() =>
   store.state.audioKeysWithInitializingSpeaker.includes(props.audioKey),
 );
 const audioItem = computed(() => store.state.audioItems[props.audioKey]);
+const dDrivenBadge = computed(() => {
+  const meta = audioItem.value?.dCueMeta;
+  if (!meta) return undefined;
+  return `D#${String(meta.order).padStart(3, "0")} · ${meta.role}`;
+});
 
 const uiLocked = computed(() => store.getters.UI_LOCKED);
 
@@ -898,6 +906,22 @@ const isMultipleEngine = computed(() => store.state.engineIds.length > 1);
       height: 100%;
       object-fit: cover;
     }
+  }
+
+  .d-driven-badge {
+    flex: 0 0 auto;
+    max-width: 10rem;
+    height: 2rem;
+    padding: 0 0.6rem;
+    border-radius: 999px;
+    background: rgba(colors.$primary-rgb, 0.12);
+    color: colors.$primary;
+    font-size: 0.75rem;
+    font-weight: 700;
+    line-height: 2rem;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   &:not(:hover) > .delete-audio-cell-button:not(:focus):not(:active) {

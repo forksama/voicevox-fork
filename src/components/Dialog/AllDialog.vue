@@ -35,6 +35,9 @@
   <ExportSongAudioDialog v-model:dialogOpened="isExportSongAudioDialogOpen" />
   <ImportSongProjectDialog v-model="isImportSongProjectDialogOpenComputed" />
   <PresetManageDialog v-model:dialogOpened="isPresetManageDialogOpenComputed" />
+  <DDrivenBatchFillDialog
+    v-model:dialogOpened="isDDrivenBatchFillDialogOpenComputed"
+  />
   <HelpDialog v-model:dialogOpened="isHelpDialogOpenComputed" />
 </template>
 
@@ -54,6 +57,7 @@ import UpdateNotificationDialogContainer from "@/components/Dialog/UpdateNotific
 import ImportSongProjectDialog from "@/components/Dialog/ImportSongProjectDialog.vue";
 import ExportSongAudioDialog from "@/components/Dialog/ExportSongAudioDialog/Container.vue";
 import PresetManageDialog from "@/components/Dialog/PresetManageDialog.vue";
+import DDrivenBatchFillDialog from "@/components/Dialog/DDrivenBatchFillDialog.vue";
 import HelpDialog from "@/components/Dialog/HelpDialog/HelpDialog.vue";
 import { useStore } from "@/store";
 import { filterCharacterInfosByStyleType } from "@/store/utility";
@@ -202,6 +206,15 @@ const isPresetManageDialogOpenComputed = computed({
   set: (val) =>
     store.actions.SET_DIALOG_OPEN({
       isPresetManageDialogOpen: val,
+    }),
+});
+
+// D 駆動一括投入ダイアログ
+const isDDrivenBatchFillDialogOpenComputed = computed({
+  get: () => store.state.isDDrivenBatchFillDialogOpen,
+  set: (val) =>
+    store.actions.SET_DIALOG_OPEN({
+      isDDrivenBatchFillDialogOpen: val,
     }),
 });
 

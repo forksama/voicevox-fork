@@ -80,6 +80,7 @@ export const uiStoreState: UiStoreState = {
   isExportSongAudioDialogOpen: false,
   isImportSongProjectDialogOpen: false,
   isPresetManageDialogOpen: false,
+  isDDrivenBatchFillDialogOpen: false,
   isHelpDialogOpen: false,
   isMaximized: false,
   isPinned: false,
@@ -523,6 +524,14 @@ export const uiStore = createPartialStore<UiStoreTypes>({
           actions: actions,
         });
       }
+    },
+  },
+
+  SHOW_D_DRIVEN_BATCH_FILL_DIALOG: {
+    action({ actions }) {
+      void actions.SET_DIALOG_OPEN({
+        isDDrivenBatchFillDialogOpen: true,
+      });
     },
   },
 

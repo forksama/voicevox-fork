@@ -116,6 +116,9 @@ const saveProject = async () => {
 const importTextFile = () => {
   void store.actions.COMMAND_IMPORT_FROM_FILE({ type: "dialog" });
 };
+const openDDrivenBatchFill = () => {
+  void store.actions.SHOW_D_DRIVEN_BATCH_FILL_DIALOG();
+};
 
 const usableButtons: Record<
   ToolbarButtonTagType,
@@ -155,6 +158,10 @@ const usableButtons: Record<
   },
   IMPORT_TEXT: {
     click: importTextFile,
+    disable: uiLocked,
+  },
+  D_DRIVEN_BATCH_FILL: {
+    click: openDDrivenBatchFill,
     disable: uiLocked,
   },
   EMPTY: null,

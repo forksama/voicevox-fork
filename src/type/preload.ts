@@ -53,6 +53,7 @@ export const defaultToolbarButtonSetting: ToolbarSettingType = [
   "PLAY_CONTINUOUSLY",
   "STOP",
   "EXPORT_AUDIO_SELECTED",
+  "D_DRIVEN_BATCH_FILL",
   "EMPTY",
   "UNDO",
   "REDO",
@@ -312,6 +313,7 @@ export const toolbarButtonTagSchema = z.enum([
   "UNDO",
   "REDO",
   "IMPORT_TEXT",
+  "D_DRIVEN_BATCH_FILL",
   "EMPTY",
 ]);
 export type ToolbarButtonTagType = z.infer<typeof toolbarButtonTagSchema>;
