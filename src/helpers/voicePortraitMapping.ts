@@ -94,6 +94,48 @@ export function upsertMappingItem(
   mapping.items.sort((a, b) => a.order - b.order);
 }
 
+export async function readMappingFile(
+  workingDir: string,
+): Promise<VpmMappingFile> {
+  if (!workingDir) {
+    return createEmptyMapping();
+  }
+
+  const filePath = mappingFilePath(workingDir);
+  const exists = await window.backend.checkFileExists(filePath);
+  if (!exists) {
+    return createEmptyMapping();
+  }
+
+  const readResult = await window.backend.readFile({ filePath });
+  if (!readResult.ok) {
+    throw new Error(`映射ファイルの読み込みに失敗しました: ${filePath}`);
+  }
+
+  const text = new TextDecoder().decode(readResult.value);
+  const parsed = JSON.parse(text) as Partial<VpmMappingFile>;
+  if (!parsed || !Array.isArray(parsed.items)) {
+    return createEmptyMapping();
+  }
+
+  return {
+    ...createEmptyMapping(),
+    ...parsed,
+    items: parsed.items,
+  } as VpmMappingFile;
+}
+
+export async function readGeneratedOrdersFromMapping(
+  workingDir: string,
+): Promise<Set<number>> {
+  const mapping = await readMappingFile(workingDir);
+  return new Set(
+    mapping.items
+      .map((item) => item.order)
+      .filter((order) => Number.isInteger(order) && order > 0),
+  );
+}
+
 const IMAGE_MIME: Record<string, string> = {
   ".png": "image/png",
   ".jpg": "image/jpeg",

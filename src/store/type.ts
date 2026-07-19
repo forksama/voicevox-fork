@@ -64,6 +64,12 @@ import {
   WarningDialogOptions,
 } from "@/components/Dialog/Dialog";
 import { HotkeySettingType } from "@/domain/hotkeyAction";
+import type {
+  DDrivenCue,
+  DDrivenManifest,
+  DDrivenRoleSummary,
+  LoadedDDrivenManifest,
+} from "@/helpers/dDrivenManifest";
 import {
   MultiFileProjectFormat,
   SingleFileProjectFormat,
@@ -88,6 +94,12 @@ export type EditorAudioQuery = Omit<
   pauseLengthScale: number; // エンジンと違って必須
 };
 
+export type DDrivenCueMeta = {
+  order: number;
+  role: string;
+  source?: string;
+};
+
 export type AudioItem = {
   text: string;
   voice: Voice;
@@ -97,6 +109,7 @@ export type AudioItem = {
   morphingInfo?: MorphingInfo;
   // 立绘映射: 该行选中的立绘绝对路径 (导出时换算为相对立绘目录的路径)。
   portraitPath?: string;
+  dCueMeta?: DDrivenCueMeta;
 };
 
 export type AudioState = {
@@ -168,6 +181,10 @@ export type AudioStoreState = {
   _selectedAudioKeys?: AudioKey[];
   _audioPlayStartPoint?: number;
   nowPlayingContinuously: boolean;
+  dDrivenManifest?: DDrivenManifest;
+  dDrivenManifestPath?: string;
+  dDrivenGeneratedOrders: number[];
+  dDrivenLastError?: string;
 };
 
 export type AudioStoreTypes = {
@@ -181,6 +198,37 @@ export type AudioStoreTypes = {
 
   AUDIO_PLAY_START_POINT: {
     getter: number | undefined;
+  };
+
+  D_DRIVEN_ROLE_SUMMARIES: {
+    getter: DDrivenRoleSummary[];
+  };
+
+  D_DRIVEN_PENDING_CUES: {
+    getter(roles?: string[]): DDrivenCue[];
+  };
+
+  SET_D_DRIVEN_MANIFEST: {
+    mutation: {
+      manifest?: DDrivenManifest;
+      manifestPath?: string;
+    };
+  };
+
+  SET_D_DRIVEN_GENERATED_ORDERS: {
+    mutation: { generatedOrders: number[] };
+  };
+
+  SET_D_DRIVEN_LAST_ERROR: {
+    mutation: { message?: string };
+  };
+
+  LOAD_D_DRIVEN_MANIFEST: {
+    action(payload: { workingDir?: string }): Promise<LoadedDDrivenManifest>;
+  };
+
+  REFRESH_D_DRIVEN_GENERATED_ORDERS: {
+    action(payload: { workingDir?: string }): Promise<number[]>;
   };
 
   LOAD_CHARACTER: {
@@ -723,6 +771,16 @@ export type AudioCommandStoreTypes = {
   COMMAND_FULLY_APPLY_AUDIO_PRESET: {
     mutation: { presetKey: PresetKey };
     action(payload: { presetKey: PresetKey }): void;
+  };
+
+  COMMAND_APPLY_D_CUES: {
+    mutation: {
+      replaceAudioKeyItemPairs: { audioKey: AudioKey; audioItem: AudioItem }[];
+      newAudioKeyItemPairs: { audioKey: AudioKey; audioItem: AudioItem }[];
+    };
+    action(payload: {
+      cueAssignments: { cue: DDrivenCue; voice: Voice }[];
+    }): Promise<AudioKey[]>;
   };
 
   COMMAND_IMPORT_FROM_FILE: {
@@ -2131,6 +2189,7 @@ export type DialogStates = {
   isExportSongAudioDialogOpen: boolean;
   isImportSongProjectDialogOpen: boolean;
   isPresetManageDialogOpen: boolean;
+  isDDrivenBatchFillDialogOpen: boolean;
   isHelpDialogOpen: boolean;
 };
 
@@ -2315,6 +2374,10 @@ export type UiStoreTypes = {
   };
 
   SHOW_GENERATE_AND_SAVE_SELECTED_AUDIO_DIALOG: {
+    action(): void;
+  };
+
+  SHOW_D_DRIVEN_BATCH_FILL_DIALOG: {
     action(): void;
   };
 

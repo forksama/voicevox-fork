@@ -71,8 +71,14 @@ import {
   toAudioRelPath,
   toPortraitRelPath,
   upsertMappingItem,
+  readGeneratedOrdersFromMapping,
   type VpmMappingFile,
 } from "@/helpers/voicePortraitMapping";
+import {
+  buildRoleSummaries,
+  getPendingCues,
+  loadManifestContextFromWorkdir,
+} from "@/helpers/dDrivenManifest";
 import { generateTextFileData } from "@/helpers/fileDataGenerator";
 
 function generateAudioKey() {
@@ -131,6 +137,31 @@ function setExportFileNameIndexesFromIndex(
     audioItem.exportFileNameIndex =
       normalizedStartExportFileNameIndex + index - startAudioKeyIndex;
   }
+}
+
+function insertAudioKeyByExportFileNameIndex(
+  state: Pick<State, "audioItems" | "audioKeys" | "audioStates">,
+  payload: { audioKey: AudioKey; audioItem: AudioItem },
+) {
+  const targetIndex = normalizeExportFileNameIndex(
+    payload.audioItem.exportFileNameIndex,
+    state.audioKeys.length + 1,
+  );
+  const insertAt = state.audioKeys.findIndex((existingAudioKey) => {
+    const existingItem = state.audioItems[existingAudioKey];
+    if (existingItem == undefined) return false;
+    return existingItem.exportFileNameIndex > targetIndex;
+  });
+
+  state.audioItems[payload.audioKey] = payload.audioItem;
+  state.audioStates[payload.audioKey] = {
+    nowGenerating: false,
+  };
+  state.audioKeys.splice(
+    insertAt === -1 ? state.audioKeys.length : insertAt,
+    0,
+    payload.audioKey,
+  );
 }
 
 function parseTextFile(
@@ -277,6 +308,7 @@ export const audioStoreState: AudioStoreState = {
   audioKeys: [],
   audioStates: {},
   nowPlayingContinuously: false,
+  dDrivenGeneratedOrders: [],
 };
 
 export const audioStore = createPartialStore<AudioStoreTypes>({
@@ -318,6 +350,104 @@ export const audioStore = createPartialStore<AudioStoreTypes>({
       return length == 0 || length == undefined
         ? undefined
         : Math.min(length - 1, audioPlayStartPoint);
+    },
+  },
+
+  D_DRIVEN_ROLE_SUMMARIES: {
+    getter(state) {
+      if (state.dDrivenManifest == undefined) {
+        return [];
+      }
+      return buildRoleSummaries(
+        state.dDrivenManifest,
+        new Set(state.dDrivenGeneratedOrders),
+      );
+    },
+  },
+
+  D_DRIVEN_PENDING_CUES: {
+    getter(state) {
+      return (roles?: string[]) => {
+        if (state.dDrivenManifest == undefined) {
+          return [];
+        }
+        return getPendingCues(
+          state.dDrivenManifest,
+          new Set(state.dDrivenGeneratedOrders),
+          roles,
+        );
+      };
+    },
+  },
+
+  SET_D_DRIVEN_MANIFEST: {
+    mutation(state, { manifest, manifestPath }) {
+      state.dDrivenManifest = manifest;
+      state.dDrivenManifestPath = manifestPath;
+    },
+  },
+
+  SET_D_DRIVEN_GENERATED_ORDERS: {
+    mutation(state, { generatedOrders }: { generatedOrders: number[] }) {
+      state.dDrivenGeneratedOrders = [...generatedOrders].sort((a, b) => a - b);
+    },
+  },
+
+  SET_D_DRIVEN_LAST_ERROR: {
+    mutation(state, { message }: { message?: string }) {
+      state.dDrivenLastError = message;
+    },
+  },
+
+  LOAD_D_DRIVEN_MANIFEST: {
+    async action(
+      { state, mutations },
+      { workingDir }: { workingDir?: string },
+    ) {
+      const resolvedWorkingDir =
+        workingDir ?? state.savingSetting.vpmWorkingDir;
+      if (!resolvedWorkingDir) {
+        const message = "D 驱动工作目录未设置，请先在设置里填写 VPM 工作目录。";
+        mutations.SET_D_DRIVEN_LAST_ERROR({ message });
+        throw new Error(message);
+      }
+
+      try {
+        const loaded = await loadManifestContextFromWorkdir(resolvedWorkingDir);
+        mutations.SET_D_DRIVEN_MANIFEST({
+          manifest: loaded.manifest,
+          manifestPath: loaded.manifestPath,
+        });
+        mutations.SET_D_DRIVEN_GENERATED_ORDERS({
+          generatedOrders: loaded.generatedOrders,
+        });
+        mutations.SET_D_DRIVEN_LAST_ERROR({ message: undefined });
+        return loaded;
+      } catch (error) {
+        const message = errorToMessage(error);
+        mutations.SET_D_DRIVEN_LAST_ERROR({ message });
+        throw error;
+      }
+    },
+  },
+
+  REFRESH_D_DRIVEN_GENERATED_ORDERS: {
+    async action(
+      { state, mutations },
+      { workingDir }: { workingDir?: string },
+    ) {
+      const resolvedWorkingDir =
+        workingDir ?? state.savingSetting.vpmWorkingDir;
+      if (!resolvedWorkingDir) {
+        mutations.SET_D_DRIVEN_GENERATED_ORDERS({ generatedOrders: [] });
+        return [];
+      }
+
+      const generatedOrders = [
+        ...(await readGeneratedOrdersFromMapping(resolvedWorkingDir)),
+      ].sort((a, b) => a - b);
+      mutations.SET_D_DRIVEN_GENERATED_ORDERS({ generatedOrders });
+      return generatedOrders;
     },
   },
 
@@ -1750,7 +1880,8 @@ export const audioStore = createPartialStore<AudioStoreTypes>({
           }
 
           // 書き出し成功 → 映射条目を追加/更新
-          const role = getters.VOICE_NAME(audioItem.voice);
+          const role =
+            audioItem.dCueMeta?.role ?? getters.VOICE_NAME(audioItem.voice);
           const portraitRelPath = audioItem.portraitPath
             ? toPortraitRelPath(portraitDir, audioItem.portraitPath)
             : "";
@@ -3200,6 +3331,141 @@ export const audioCommandStore = transformCommandStore(
       },
       action({ mutations }, payload: { presetKey: PresetKey }) {
         mutations.COMMAND_FULLY_APPLY_AUDIO_PRESET(payload);
+      },
+    },
+
+    COMMAND_APPLY_D_CUES: {
+      mutation(
+        draft,
+        {
+          replaceAudioKeyItemPairs,
+          newAudioKeyItemPairs,
+        }: {
+          replaceAudioKeyItemPairs: {
+            audioKey: AudioKey;
+            audioItem: AudioItem;
+          }[];
+          newAudioKeyItemPairs: { audioKey: AudioKey; audioItem: AudioItem }[];
+        },
+      ) {
+        const appliedAudioKeys: AudioKey[] = [];
+
+        for (const { audioKey, audioItem } of replaceAudioKeyItemPairs) {
+          const current = draft.audioItems[audioKey];
+          draft.audioItems[audioKey] = {
+            ...current,
+            ...audioItem,
+            portraitPath: current?.portraitPath ?? audioItem.portraitPath,
+          };
+          appliedAudioKeys.push(audioKey);
+        }
+
+        for (const payload of newAudioKeyItemPairs) {
+          insertAudioKeyByExportFileNameIndex(draft, payload);
+          appliedAudioKeys.push(payload.audioKey);
+        }
+
+        if (appliedAudioKeys.length > 0) {
+          draft._activeAudioKey = appliedAudioKeys[0];
+          draft._selectedAudioKeys = appliedAudioKeys;
+        }
+      },
+      async action(
+        { state, actions, mutations },
+        {
+          cueAssignments,
+        }: {
+          cueAssignments: {
+            cue: {
+              order: number;
+              role: string;
+              jaText: string;
+              source?: string;
+            };
+            voice: Voice;
+          }[];
+        },
+      ) {
+        const dedupedAssignments = new Map<
+          number,
+          {
+            cue: {
+              order: number;
+              role: string;
+              jaText: string;
+              source?: string;
+            };
+            voice: Voice;
+          }
+        >();
+        for (const assignment of cueAssignments) {
+          dedupedAssignments.set(assignment.cue.order, assignment);
+        }
+
+        const exportOrderToAudioKey = new Map<number, AudioKey>();
+        for (const audioKey of state.audioKeys) {
+          const audioItem = state.audioItems[audioKey];
+          if (audioItem == undefined) continue;
+          if (!exportOrderToAudioKey.has(audioItem.exportFileNameIndex)) {
+            exportOrderToAudioKey.set(audioItem.exportFileNameIndex, audioKey);
+          }
+        }
+
+        const baseAudioItem = state._activeAudioKey
+          ? state.audioItems[state._activeAudioKey]
+          : undefined;
+        const replaceAudioKeyItemPairs: {
+          audioKey: AudioKey;
+          audioItem: AudioItem;
+        }[] = [];
+        const newAudioKeyItemPairs: {
+          audioKey: AudioKey;
+          audioItem: AudioItem;
+        }[] = [];
+        const appliedAudioKeys: AudioKey[] = [];
+
+        for (const { cue, voice } of [...dedupedAssignments.values()].sort(
+          (a, b) => a.cue.order - b.cue.order,
+        )) {
+          const existingAudioKey = exportOrderToAudioKey.get(cue.order);
+          const existingAudioItem =
+            existingAudioKey != undefined
+              ? state.audioItems[existingAudioKey]
+              : undefined;
+          const nextAudioItem = await actions.GENERATE_AUDIO_ITEM({
+            text: cue.jaText,
+            voice,
+            exportFileNameIndex: cue.order,
+            baseAudioItem: existingAudioItem ?? baseAudioItem,
+          });
+          nextAudioItem.portraitPath = existingAudioItem?.portraitPath;
+          nextAudioItem.dCueMeta = {
+            order: cue.order,
+            role: cue.role,
+            source: cue.source,
+          };
+
+          if (existingAudioKey != undefined) {
+            replaceAudioKeyItemPairs.push({
+              audioKey: existingAudioKey,
+              audioItem: nextAudioItem,
+            });
+            appliedAudioKeys.push(existingAudioKey);
+          } else {
+            const audioKey = generateAudioKey();
+            newAudioKeyItemPairs.push({
+              audioKey,
+              audioItem: nextAudioItem,
+            });
+            appliedAudioKeys.push(audioKey);
+          }
+        }
+
+        mutations.COMMAND_APPLY_D_CUES({
+          replaceAudioKeyItemPairs,
+          newAudioKeyItemPairs,
+        });
+        return appliedAudioKeys;
       },
     },
 
