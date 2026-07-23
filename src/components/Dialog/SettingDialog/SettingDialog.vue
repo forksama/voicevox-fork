@@ -362,7 +362,7 @@
                 </BaseRowCard>
                 <ToggleCell
                   title="役割で立絵を自動填充"
-                  description="ONの場合、ある役割の行で立絵を設定すると、同じ役割の未設定行にも同じ立絵が自動的に設定されます。"
+                  description="ONの場合、ある行で立絵を設定すると、同じ役割 (pr-subtitles-D の role) の未設定行にも同じ立絵が自動的に設定されます。D 情報がない行は音声モデルで束ねます。"
                   :modelValue="savingSetting.vpmAutoFillByRole"
                   @update:modelValue="
                     handleSavingSettingChange('vpmAutoFillByRole', $event)

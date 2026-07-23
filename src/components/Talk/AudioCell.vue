@@ -256,7 +256,8 @@ const onPortraitConfirm = (portraitAbsPath: string) => {
   void store.actions.COMMAND_SET_AUDIO_PORTRAIT_PATH({
     audioKey: props.audioKey,
     portraitPath: portraitAbsPath,
-    autoFillByRole: store.state.savingSetting.vpmAutoFillByRole,
+    autoFillByRole:
+      portraitAbsPath !== "" && store.state.savingSetting.vpmAutoFillByRole,
   });
 };
 

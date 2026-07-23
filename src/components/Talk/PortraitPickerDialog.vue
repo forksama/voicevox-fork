@@ -101,6 +101,15 @@
       <QCardActions>
         <QSpace />
         <QBtn
+          v-if="canClear"
+          unelevated
+          label="現在の立絵を解除"
+          color="toolbar-button"
+          textColor="toolbar-button-display"
+          class="text-no-wrap text-bold q-mr-sm"
+          @click="handleClear"
+        />
+        <QBtn
           unelevated
           label="キャンセル"
           color="toolbar-button"
@@ -165,6 +174,7 @@ const savingSetting = computed(() => store.state.savingSetting);
 const relSegments = computed(() =>
   roleRelDir.value ? roleRelDir.value.split("/").filter((s) => s !== "") : [],
 );
+const canClear = computed(() => !!props.initialPortraitPath);
 
 function revokeUrls() {
   for (const url of objectUrls.value) {
@@ -293,6 +303,11 @@ function selectThumb(thumb: Thumbnail) {
 }
 
 function handleCancel() {
+  modelValue.value = false;
+}
+
+function handleClear() {
+  emit("confirm", "");
   modelValue.value = false;
 }
 

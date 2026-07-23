@@ -2362,16 +2362,24 @@ export const audioCommandStore = transformCommandStore(
         const target = draft.audioItems[audioKey];
         if (target == undefined) return;
         target.portraitPath = portraitPath;
-        // 同一 role (speakerId) で立絵未設定の行に自動填充する
-        if (autoFillByRole) {
+        // 非空の立絵を設定したときだけ、立絵未設定の同一「役割」の行に自動填充する。
+        // 役割は pr-subtitles-D 由来の dCueMeta.role を優先する。
+        // D 情報を持たない行 (非 D インポート) は従来どおり speakerId で束ねる。
+        if (autoFillByRole && portraitPath !== "") {
+          const targetRole = target.dCueMeta?.role;
           const targetSpeakerId = target.voice.speakerId;
           for (const key of draft.audioKeys) {
             const item = draft.audioItems[key];
             if (item == undefined) continue;
-            if (
-              item.voice.speakerId === targetSpeakerId &&
-              (item.portraitPath == undefined || item.portraitPath === "")
-            ) {
+            if (item.portraitPath != undefined && item.portraitPath !== "") {
+              continue;
+            }
+            const sameRole =
+              targetRole != undefined && targetRole !== ""
+                ? item.dCueMeta?.role === targetRole
+                : item.dCueMeta?.role == undefined &&
+                  item.voice.speakerId === targetSpeakerId;
+            if (sameRole) {
               item.portraitPath = portraitPath;
             }
           }
